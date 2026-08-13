@@ -5,12 +5,14 @@ A Playwright-based test automation project for automating business workflows acr
 The project follows the **Page Object Model (POM)** design pattern to keep test logic, page interactions, configuration, and reusable utilities organized and maintainable.
 
 ## Tech Stack
+
 - Playwright
 - JavaScript
 - Node.js
 - Page Object Model (POM)
 - Environment Variables
 - Git & GitHub
+
 ## Automated Workflows
 
 ### Seller Portal
@@ -42,41 +44,7 @@ Automated outbound inventory workflow:
 14. Select source and destination warehouses
 15. Submit the transfer request
 
-The workflow includes handling for cases where an order may already be approved and polling for backend processing delays.
-
-## Project Structure
-
-```text
-Manual_Task_Automation/
-│
-├── automation/
-│   ├── inventory/
-│   │   ├── pages/
-│   │   │   └── inventoryWorkflow.pages.js
-│   │   └── tests/
-│   │       └── outboundApproval.spec.js
-│   │
-│   └── seller/
-│       ├── pages/
-│       │   ├── product.page.js
-│       │   └── sellerLogin.page.js
-│       └── tests/
-│           └── addProduct.spec.js
-│
-├── config/
-│   └── testConfig.js
-│
-├── utils/
-│   ├── dataGenerator.js
-│   ├── otpHelper.js
-│   └── waitHelper.js
-│
-├── .env.example
-├── .gitignore
-├── package.json
-├── playwright.config.js
-└── README.md
-```
+The workflow also handles cases where an order may already be approved and includes polling for backend processing delays.
 
 ## Environment Configuration
 
@@ -100,33 +68,18 @@ The `.env` file is excluded from Git using `.gitignore`.
 
 An `.env.example` file is included to show the required environment variables without exposing credentials.
 
-## Installation
+The project supports multiple systems:
 
-Clone the repository:
+- `inventory`
+- `seller`
 
-```bash
-git clone https://github.com/rahama21/Manual-Task-Automation.git
+Configuration is centrally managed through:
+
+```text
+config/testConfig.js
 ```
 
-Navigate to the project directory:
-
-```bash
-cd Manual-Task-Automation
-```
-
-Install dependencies:
-
-```bash
-npm install
-```
-
-Install Playwright browsers:
-
-```bash
-npx playwright install
-```
-
-Create your `.env` file using `.env.example` as a reference.
+This keeps system-specific settings separated from the test implementation.
 
 ## Running Tests
 
@@ -160,72 +113,6 @@ View the Playwright report:
 npx playwright show-report
 ```
 
-## Configuration
-
-The project supports multiple systems through environment configuration:
-
-- `inventory`
-- `seller`
-
-Example:
-
-```bash
-TEST_SYSTEM=inventory npx playwright test
-```
-
-Configuration is centrally managed through:
-
-```text
-config/testConfig.js
-```
-
-This keeps URLs, credentials, timeouts, paths, menus, and environment-specific settings separated from the test implementation.
-
-## Key Implementation Details
-
-### Page Object Model
-
-Page interactions are separated from test scenarios to improve:
-
-- Maintainability
-- Reusability
-- Readability
-- Scalability
-
-### Environment-Based Credentials
-
-Credentials and OTP values are loaded through environment variables and are excluded from version control.
-
-### Reusable Wait Utilities
-
-The project includes reusable helpers for:
-
-- Page stability
-- Toast message validation
-- Table loading
-- Dynamic UI synchronization
-
-### Backend Processing Handling
-
-The Inventory workflow uses polling to handle situations where backend processing takes time, such as when an approved order is not immediately visible in the Approved tab.
-
 ## Security
-The following files and generated artifacts are excluded from Git:
-```text
-.env
-node_modules/
-test-results/
-playwright-report/
-blob-report/
-*.png
-*.jpg
-*.jpeg
-```
-Sensitive credentials are stored locally and are not included in the public repository.
 
-## Future Improvements
-- Add CI/CD integration with GitHub Actions
-- Add Allure reporting
-- Add API validation alongside UI automation
-- Expand Inventory workflow coverage
-- Add additional negative and edge-case scenarios
+Credentials and OTP values are stored locally using environment variables and are not included in the repository
