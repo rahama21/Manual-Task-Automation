@@ -1,0 +1,15 @@
+{
+  "name": "manual-task-automation",
+  "version": "1.0.0",
+  "description": "Playwright automation for CartUp Seller Portal",
+  "scripts": {
+    "test": "npx playwright test",
+    "test:headed": "npx playwright test --headed",
+    "test:debug": "npx playwright test --debug",
+    "report": "npx playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.0",
+    "dotenv": "^17.3.1"
+  }
+}

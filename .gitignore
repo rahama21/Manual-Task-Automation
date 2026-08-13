@@ -1,0 +1,21 @@
+# Environment variables and credentials
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+
+# Playwright generated files
+test-results/
+playwright-report/
+blob-report/
+
+# Screenshots and generated images
+*.png
+*.jpg
+*.jpeg
+
+# OS / editor files
+.DS_Store
+.vscode/
