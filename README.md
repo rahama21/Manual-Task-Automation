@@ -2,15 +2,6 @@
 
 Playwright-based automation for Seller Portal and Inventory Portal workflows.
 
-## Tech Stack
-
-- Playwright
-- JavaScript
-- Node.js
-- Page Object Model (POM)
-- Environment Variables
-- Git & GitHub
-
 ## Environment Configuration
 
 Sensitive information such as usernames, passwords, and OTP values is stored using environment variables.
