@@ -11,18 +11,16 @@ const {
 } = require('../pages/inventoryWorkflow.pages');
 
 // ─── Test Data ───────────────────────────────────────────────────────────────
-const ORDER_NUMBER          = '26081199959554';
+const ORDER_NUMBER          = process.env.TEST_ORDER_NUMBER;
 const MATERIAL_QTY          = 1;
-const WAREHOUSE             = 'Tejgaon Warehouse';
-const DESTINATION_WAREHOUSE = 'Tejgaon Sort Center';
+const WAREHOUSE             = process.env.TEST_WAREHOUSE;
+const DESTINATION_WAREHOUSE = process.env.TEST_DESTINATION_WAREHOUSE;
 
 // Update SKUS per order — 1 entry for single SKU, multiple for multi-SKU orders
 const SKUS = [
-    
-    { uin: 'CU-1723155-2854348', qty: 2 },
-     // { uin: 'CU-1723146-2854329', qty: 2 },
-     
-    ];
+    { uin: process.env.TEST_SKU_1, qty: 1 },
+    { uin: process.env.TEST_SKU_2, qty: 1 },
+];
 
 test.describe('Outbound Order Approval', () => {
 

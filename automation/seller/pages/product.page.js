@@ -154,7 +154,6 @@ class ProductPage {
     async selectCategory(categoryPath) {
         console.log('  [CAT] Selecting category...');
 
-        // Open category popup
         const categoryInput = this.activePage
             .locator('label')
             .filter({ hasText: /^Category$/ })
@@ -166,26 +165,30 @@ class ProductPage {
 
         for (let i = 0; i < categoryPath.length; i++) {
             const category = categoryPath[i];
+            const isLastCategory = i === categoryPath.length - 1;
 
             console.log(`  -> Selecting ${category}`);
 
-            const option = this.activePage
-                .getByText(category, { exact: true })
-                .first();
+            if (isLastCategory) {
+                const finalCategory = this.activePage
+                    .getByText(category, { exact: true })
+                    .first();
 
-            await option.waitFor({
-                state: 'visible',
-                timeout: TIMEOUT.LONG
-            });
-
-            await option.click();
-
-            if (i < categoryPath.length - 1) {
-                await expect(
-                    this.activePage.getByText(categoryPath[i + 1], { exact: true })
-                ).toBeVisible({
+                await expect(finalCategory).toBeVisible({
                     timeout: TIMEOUT.LONG
                 });
+
+                await finalCategory.click();
+            } else {
+                const categoryOption = this.activePage
+                    .getByText(category, { exact: true })
+                    .first();
+
+                await expect(categoryOption).toBeVisible({
+                    timeout: TIMEOUT.LONG
+                });
+
+                await categoryOption.click();
             }
         }
 

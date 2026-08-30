@@ -9,13 +9,13 @@ function createProduct() {
     const uniqueSuffix = new Date().toISOString().replace(/[-:.TZ]/g, '');
 
     return {
-        name: `PlayStation DualSense® Wireless Controller - Midnight Black, ${uniqueSuffix}`,
+        name: `Test Product ${uniqueSuffix}`,
         imagePath: path.resolve(__dirname, '../../../assets/image.jpg'),
         categoryPath: [
-            'TV, Audio / Video, Gaming Wearables',
-            'Console Gaming',
-            'PlayStation',
-            'Controllers',
+            "TV, Audio / Video, Gaming Wearables",
+            "Audio",
+            "Headphones Headsets",
+            "Wireless Earbuds"
         ],
         brand: 'Apple',
         unit: 'pcs',
