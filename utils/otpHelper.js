@@ -43,11 +43,12 @@ async function enterOtp(page, otp = OTP) {
         for (let i = 0; i < Math.min(inputCount, otp.length); i++) {
             await digitInputs.nth(i).fill(otp[i]);
         }
+        await digitInputs.last().press('Tab');
         console.log(`  [OTP] Filled ${Math.min(inputCount, otp.length)} digit inputs`);
     }
 
     // Click VERIFY button
-    const verifyBtn = page.locator('button[type="submit"]:has-text("Verify")');
+    const verifyBtn = page.locator('button[type="submit"]').filter({ hasText: /verify/i });
     await expect(verifyBtn).toBeVisible({ timeout: TIMEOUT.MEDIUM });
     await verifyBtn.click();
     console.log('  [OTP] VERIFY button clicked');

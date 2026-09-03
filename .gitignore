@@ -19,3 +19,10 @@ blob-report/
 # OS / editor files
 .DS_Store
 .vscode/
+# Runtime-generated product SKU data
+captured-sku.json
+
+# Failure screenshots
+failure-*.png
+# Local debugging and investigation workspace
+scratch/

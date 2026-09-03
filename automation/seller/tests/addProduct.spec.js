@@ -1,6 +1,7 @@
 // @ts-check
 const { test } = require('@playwright/test');
 const path = require('path');
+const fs = require('fs');
 const { LoginPage } = require('../pages/sellerLogin.page');
 const { ProductPage } = require('../pages/product.page');
 const { CREDENTIALS } = require('../../../config/testConfig');
@@ -12,10 +13,10 @@ function createProduct() {
         name: `Test Product ${uniqueSuffix}`,
         imagePath: path.resolve(__dirname, '../../../assets/image.jpg'),
         categoryPath: [
-            "TV, Audio / Video, Gaming Wearables",
-            "Audio",
-            "Headphones Headsets",
-            "Wireless Earbuds"
+            "Home Appliances",
+            "Cooling  Heating",
+            "Fan",
+            "Mini Fans"
         ],
         brand: 'Apple',
         unit: 'pcs',
@@ -74,7 +75,17 @@ test.describe('CartUp Seller Portal: Add Product', () => {
 
         // STEP 4: SUBMIT
         await test.step('Submit Product', async () => {
-            await productPage.submitProduct();
+            const [createResponse] = await Promise.all([
+                productPage.getActivePage().waitForResponse(resp => resp.url().includes('/product/create') && (resp.status() === 200 || resp.status() === 201)),
+                productPage.submitProduct(),
+            ]);
+            const body = await createResponse.json();
+            const capturedSkus = body.data.ProductVariants.map(v => v.ShopSKU);
+            console.log(`  [CAPTURE] Captured SKUs: ${capturedSkus.join(', ')}`);
+
+            const outPath = path.resolve(__dirname, '../../../captured-sku.json');
+            fs.writeFileSync(outPath, JSON.stringify({ skus: capturedSkus, capturedAt: new Date().toISOString() }));
+            console.log(`  [OK] Wrote SKU(s) to ${outPath}`);
         });
 
         // STEP 5: VERIFY

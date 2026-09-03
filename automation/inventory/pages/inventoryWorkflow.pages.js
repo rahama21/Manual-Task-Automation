@@ -11,9 +11,9 @@ class LoginPage {
         this.page = page;
         this.usernameInput = page.locator('input[name="username"]');
         this.passwordInput = page.locator('input[name="password"]');
-        this.loginBtn = page.locator('button[type="submit"]:has-text("Login")');
+        this.loginBtn = page.locator('button[type="submit"]').filter({ hasText: /^login$/i });
         this.otpInputs = page.locator('input[inputmode="numeric"][maxlength="1"]');
-        this.verifyBtn = page.locator('button[type="submit"]:has-text("Verify")');
+        this.verifyBtn = page.locator('button[type="submit"]').filter({ hasText: /^verify$/i });
     }
 
     async goto() {
@@ -26,34 +26,8 @@ class LoginPage {
         console.log('\n[LOGIN] STEP 1: Entering credentials');
         await this.usernameInput.fill(username);
         await this.passwordInput.fill(password);
-
-        // Press Tab after filling password — triggers blur/change events so React
-        // updates its internal state before we click submit. Without this, fill()
-        // can outrun React's onChange handler and the form submits with stale state.
-        await this.passwordInput.press('Tab');
-
-        // Click login button
-        await this.loginBtn.waitFor({ state: 'visible', timeout: TIMEOUT.MEDIUM });
         await this.loginBtn.click();
         console.log('  -> Login button clicked');
-
-        // Verify login was submitted — wait for either OTP screen or URL change
-        // If button click didn't register, retry with force: true
-        const otpOrRedirect = await Promise.race([
-            this.page.locator('text=Verify OTP').waitFor({ state: 'visible', timeout: TIMEOUT.LONG }).then(() => 'otp'),
-            this.page.waitForFunction(
-                () => !window.location.pathname.includes('/auth/login'),
-                { timeout: TIMEOUT.LONG }
-            ).then(() => 'redirect'),
-        ]).catch(() => 'timeout');
-
-        if (otpOrRedirect === 'timeout') {
-            console.log('  [WARN] Login click may not have registered — retrying');
-            await this.loginBtn.click({ force: true });
-            console.log('  -> Login button re-clicked (force)');
-        } else {
-            console.log(`  -> Login form submitted (${otpOrRedirect})`);
-        }
     }
 
     async enterOtp(otp = OTP) {
@@ -64,9 +38,10 @@ class LoginPage {
     async waitForDashboard() {
         // App lands on root URL after login, not /dashboard
         await this.page.waitForFunction(
-            () => !window.location.pathname.includes('/auth/login'),
+            () => !window.location.pathname.includes('/auth'),
             { timeout: TIMEOUT.LOGIN_REDIRECT }
         );
+        await this.page.locator('.ps-sidebar-container').waitFor({ state: 'visible', timeout: TIMEOUT.NAVIGATION });
         await waitForPageStable(this.page);
         console.log('  [OK] Post-login page loaded, URL: ' + this.page.url());
     }
@@ -707,10 +682,193 @@ class MasterPackTransferPage {
     }
 }
 
+// --- Product Without Stock / Assign Supplier Page ---------------------------
+class ProductWithoutStockPage {
+    /** @param {import('@playwright/test').Page} page */
+    constructor(page) {
+        this.page = page;
+
+        const nav = page.locator('.ps-sidebar-container');
+        this.commercialMenu = nav.locator('a').filter({ hasText: new RegExp(`^${MENU.COMMERCIAL}$`) });
+        this.productSubmenu = nav.locator('a').filter({ hasText: new RegExp(`^${MENU.PRODUCT}$`) });
+        this.productsLink = nav.locator('a').filter({ hasText: new RegExp(`^${MENU.PRODUCTS}$`) });
+
+        this.tabNav = page.locator('ul.p-tabmenu-nav');
+        this.withoutStockTab = this.tabNav.locator('a').filter({ hasText: /^Without Stock$/ });
+
+        this.searchBtn = page.getByRole('button', { name: /^Search$/i });
+        this.selectAllCheckbox = page.locator('thead [data-pc-section="headercheckbox"], thead .p-checkbox-box').first();
+
+        // Confirmed: button[type="submit"] disabled until Brand+Supplier both selected & rows checked
+        this.assignSupplierBtn = page.locator('button[type="submit"]').filter({ hasText: /^Assign Supplier$/ });
+    }
+
+    // --- Navigation ---------------------------------------------------------
+
+    async navigateToProductList() {
+        console.log('\n[NAV] Navigating to Commercial > Product > Products');
+
+        await this.commercialMenu.waitFor({ state: 'visible', timeout: TIMEOUT.NAVIGATION });
+        await this.commercialMenu.click();
+        console.log('  -> Commercial menu clicked');
+
+        await expect(this.productSubmenu).toBeVisible({ timeout: TIMEOUT.MEDIUM });
+        await this.productSubmenu.click();
+        console.log('  -> Product submenu clicked');
+
+        await expect(this.productsLink).toBeVisible({ timeout: TIMEOUT.MEDIUM });
+        await this.productsLink.click();
+        console.log('  -> Products link clicked');
+
+        await this.page.waitForURL('**/product/list**', { timeout: TIMEOUT.NAVIGATION });
+        await waitForPageStable(this.page);
+        await waitForTableLoad(this.page);
+        console.log('  [OK] Product list page loaded');
+    }
+
+    // --- Tabs -----------------------------------------------------------------
+
+    async switchToWithoutStockTab() {
+        console.log('\n[TAB] Switching to Without Stock tab');
+        await this.withoutStockTab.click();
+        await this.page.waitForURL('**statusId=0**', { timeout: TIMEOUT.MEDIUM }).catch(() => {});
+        const activeTab = this.tabNav.locator('li.p-highlight a').filter({ hasText: /^Without Stock$/ });
+        await activeTab.waitFor({ state: 'visible', timeout: TIMEOUT.MEDIUM });
+        await waitForPageStable(this.page);
+        await waitForTableLoad(this.page);
+        console.log('  [OK] Without Stock tab active');
+    }
+
+    // --- Search & Filters ----------------------------------------------------
+
+    async clickSearch() {
+        console.log('\n[ACTION] Clicking Search to filter table');
+        await this.searchBtn.waitFor({ state: 'visible', timeout: TIMEOUT.MEDIUM });
+        await this.searchBtn.click();
+        await waitForPageStable(this.page);
+        await waitForTableLoad(this.page);
+        console.log('  [OK] Table filtered');
+    }
+
+    async searchBySku(sku) {
+        console.log(`\n[SEARCH] Searching by SKU: ${sku}`);
+        const skuInput = this.page.locator('input[placeholder="Product sku"], input[name="sku"]').first();
+        await skuInput.waitFor({ state: 'visible', timeout: TIMEOUT.MEDIUM });
+        await skuInput.clear();
+        await skuInput.fill(sku);
+        await skuInput.press('Tab');
+        await this.clickSearch();
+    }
+
+    // --- Checkbox selection ---------------------------------------------------
+
+    async selectAllRows() {
+        console.log('\n[CHECKBOX] Selecting all rows');
+        await this.selectAllCheckbox.waitFor({ state: 'visible', timeout: TIMEOUT.MEDIUM });
+        await this.selectAllCheckbox.click();
+        console.log('  [OK] All rows selected');
+    }
+
+    async selectRowBySku(sku) {
+        console.log(`\n[CHECKBOX] Selecting row for SKU: ${sku}`);
+        const row = this.page.locator('tbody tr').filter({ hasText: sku }).first();
+        await row.waitFor({ state: 'visible', timeout: TIMEOUT.LONG });
+        const checkbox = row.locator('[data-pc-section="checkbox"], .p-checkbox-box, [role="checkbox"]').first();
+        await checkbox.waitFor({ state: 'visible', timeout: TIMEOUT.MEDIUM });
+        await checkbox.click();
+        console.log(`  [OK] Row selected for SKU: ${sku}`);
+    }
+
+    // --- Brand / Supplier selection ------------------------------------------
+
+    /**
+     * Select a react-select option by its placeholder label text.
+     * Same aria-describedby pattern as MasterPackCreatePage.addMasterPackMaterial —
+     * required because the placeholder here is a <div>, not label/p/span, so
+     * the seller-side selectDropdown() helper does not match it.
+     * @param {string} placeholderText
+     * @param {string} value
+     */
+    async _selectReactSelectByPlaceholder(placeholderText, value) {
+        const placeholderEl = this.page
+            .locator('[id^="react-select"][id$="-placeholder"]')
+            .filter({ hasText: new RegExp(`^${placeholderText}$`) });
+        await placeholderEl.waitFor({ state: 'attached', timeout: TIMEOUT.MEDIUM });
+        const placeholderId = await placeholderEl.getAttribute('id');
+
+        const input = this.page.locator(`input[aria-describedby="${placeholderId}"]`);
+        await input.waitFor({ state: 'visible', timeout: TIMEOUT.MEDIUM });
+        await input.click();
+        await input.fill(value);
+
+        const option = this.page.locator('[class*="-option"]').filter({ hasText: new RegExp(value, 'i') }).first();
+        await option.waitFor({ state: 'visible', timeout: TIMEOUT.MEDIUM });
+        const optionText = await option.textContent();
+        await option.click();
+        console.log(`  -> Selected "${optionText?.trim()}" for ${placeholderText}`);
+    }
+
+    async selectBrand(brand) {
+        console.log(`\n[FILTER] Selecting brand: ${brand}`);
+        await this._selectReactSelectByPlaceholder('Brand', brand);
+        await this.clickSearch();
+    }
+
+    async selectSupplier(supplier) {
+        console.log(`\n[FILTER] Selecting supplier: ${supplier}`);
+        await this._selectReactSelectByPlaceholder('Supplier', supplier);
+    }
+
+    // --- Assign ---------------------------------------------------------------
+
+    async clickAssignSupplier() {
+        console.log('\n[ACTION] Clicking Assign Supplier');
+        // Button starts disabled — wait for it to become enabled once both
+        // Brand and Supplier are selected, and row(s) are checked.
+        await expect(this.assignSupplierBtn).toBeEnabled({ timeout: TIMEOUT.MEDIUM });
+        await this.assignSupplierBtn.click();
+        console.log('  -> Assign Supplier clicked');
+
+        await waitForToast(this.page, 'success');
+        await waitForPageStable(this.page);
+        console.log('  [OK] Supplier assigned successfully');
+    }
+
+    // --- Verification ---------------------------------------------------------
+
+    /**
+     * After assigning, re-search by SKU and confirm the Suppliers column
+     * reflects the assignment. Suppliers is the last column in the table
+     * (confirmed from live DOM: unassigned rows show "n/a - n/a").
+     * @param {string} sku
+     * @param {string} supplierCode - e.g. 'S10110'
+     */
+    async verifySupplierAssigned(sku, supplierCode) {
+        console.log(`\n[VERIFY] Confirming supplier assignment for SKU: ${sku}`);
+        await this.switchToWithoutStockTab();
+        await this.searchBySku(sku);
+
+        const row = this.page.locator('tbody tr').filter({ hasText: sku }).first();
+        await row.waitFor({ state: 'visible', timeout: TIMEOUT.LONG });
+
+        const suppliersCell = row.locator('td').last();
+        const cellText = (await suppliersCell.textContent())?.trim() ?? '';
+        console.log(`  [INFO] Suppliers cell for ${sku}: "${cellText}"`);
+
+        if (cellText.includes('n/a') || !cellText.includes(supplierCode)) {
+            throw new Error(
+                `Supplier assignment not reflected for SKU ${sku}. Expected cell to contain "${supplierCode}", got: "${cellText}"`
+            );
+        }
+        console.log(`  [OK] Supplier assignment confirmed for SKU ${sku}: "${cellText}"`);
+    }
+}
+
 module.exports = {
     LoginPage,
     OutboundApprovalPage,
     PackingScanPage,
     MasterPackCreatePage,
-    MasterPackTransferPage
+    MasterPackTransferPage,
+    ProductWithoutStockPage
 };

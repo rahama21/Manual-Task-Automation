@@ -44,12 +44,16 @@ const SYSTEM_CONFIG = {
             DELIVERY_ORDER: '/delivery-order',
             MASTER_PACK: '/order/master-packaging',  // fixed: was '/master-pack'
             MASTER_PACK_TRANSFER: '/order/master-package-transfer',  // confirmed from browser URL
+            PRODUCT_LIST: '/product/list',
         },
 
         MENU: {
             OPERATION: 'Operation',
             OUTBOUND: 'Outbound',
             OUTBOUND_APPROVAL: 'Outbound Order Approval',
+            COMMERCIAL: 'Commercial',
+            PRODUCT: 'Product',
+            PRODUCTS: 'Products',
         },
 
         SCAN: {
