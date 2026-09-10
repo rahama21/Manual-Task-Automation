@@ -730,11 +730,15 @@ class ProductWithoutStockPage {
 
     async switchToWithoutStockTab() {
         console.log('\n[TAB] Switching to Without Stock tab');
-        await this.withoutStockTab.click();
-        await this.page.waitForURL('**statusId=0**', { timeout: TIMEOUT.MEDIUM }).catch(() => {});
-        const activeTab = this.tabNav.locator('li.p-highlight a').filter({ hasText: /^Without Stock$/ });
-        await activeTab.waitFor({ state: 'visible', timeout: TIMEOUT.MEDIUM });
-        await waitForPageStable(this.page);
+        // Clicking the tab is unreliable post-reload: PrimeReact's p-highlight can
+        // already be set from before the reload while the underlying fetch/filter
+        // state defaults to With Stock — clicking an "already active" tab is then
+        // a no-op that changes nothing. Force the actual URL instead of trusting
+        // any UI signal derived from a click.
+        const currentUrl = new URL(this.page.url());
+        currentUrl.searchParams.set('statusId', '0');
+        await this.page.goto(currentUrl.toString());
+        await waitForPageStable(this.page); // full reload — let hydration finish before touching the form
         await waitForTableLoad(this.page);
         console.log('  [OK] Without Stock tab active');
     }
@@ -801,11 +805,62 @@ class ProductWithoutStockPage {
         await input.click();
         await input.fill(value);
 
-        const option = this.page.locator('[class*="-option"]').filter({ hasText: new RegExp(value, 'i') }).first();
-        await option.waitFor({ state: 'visible', timeout: TIMEOUT.MEDIUM });
-        const optionText = await option.textContent();
-        await option.click();
-        console.log(`  -> Selected "${optionText?.trim()}" for ${placeholderText}`);
+        // Wait for at least one option to appear
+        await this.page.locator('[class*="-option"]').first().waitFor({ state: 'visible', timeout: TIMEOUT.MEDIUM });
+
+        // 1. Try exact match first
+        const exactOption = this.page
+            .locator('[class*="-option"]')
+            .filter({
+                hasText: new RegExp(`^\\s*${value.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\s*$`, 'i')
+            });
+
+        const exactCount = await exactOption.count();
+
+        let selectedText = '';
+
+        if (exactCount === 1) {
+            selectedText = (await exactOption.first().textContent())?.trim() ?? value;
+            await exactOption.first().click();
+        } else if (exactCount > 1) {
+            throw new Error(
+                `Multiple exact matches for "${value}" under ${placeholderText}.`
+            );
+        } else {
+            // 2. No exact match, so try substring match
+            const substringOption = this.page
+                .locator('[class*="-option"]')
+                .filter({
+                    hasText: new RegExp(
+                        value.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&'),
+                        'i'
+                    )
+                });
+
+            const matchCount = await substringOption.count();
+
+            if (matchCount === 0) {
+                throw new Error(
+                    `No option found for "${value}" under ${placeholderText}.`
+                );
+            }
+
+            if (matchCount > 1) {
+                throw new Error(
+                    `Ambiguous match for "${value}" under ${placeholderText}: ${matchCount} options matched. Use a more specific value.`
+                );
+            }
+
+            selectedText = (await substringOption.first().textContent())?.trim() ?? value;
+            await substringOption.first().click();
+        }
+
+        console.log(`  -> Selected "${selectedText}" for ${placeholderText}`);
+
+        // Confirm the selected value is reflected in the control's single-value display —
+        // same verification pattern seller-side selectBrand() already uses.
+        const singleValue = this.page.locator('.css-1dimb5e-singleValue, [class*="-singleValue"]').filter({ hasText: new RegExp(value.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&'), 'i') });
+        await singleValue.waitFor({ state: 'visible', timeout: TIMEOUT.SHORT });
     }
 
     async selectBrand(brand) {
@@ -846,6 +901,8 @@ class ProductWithoutStockPage {
     async verifySupplierAssigned(sku, supplierCode) {
         console.log(`\n[VERIFY] Confirming supplier assignment for SKU: ${sku}`);
         await this.switchToWithoutStockTab();
+        // switchToWithoutStockTab() is now a hard reload — it wipes the SKU field.
+        // Don't assume any prior filter state survived; refill it explicitly.
         await this.searchBySku(sku);
 
         const row = this.page.locator('tbody tr').filter({ hasText: sku }).first();
