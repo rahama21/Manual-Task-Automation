@@ -720,7 +720,20 @@ class ProductWithoutStockPage {
         await this.productsLink.click();
         console.log('  -> Products link clicked');
 
-        await this.page.waitForURL('**/product/list**', { timeout: TIMEOUT.NAVIGATION });
+        // Same retry-on-no-navigation pattern as LoginPage.login() — a click can
+        // occasionally not register a route change in this SPA; one retry covers it
+        // without masking a real failure (still throws if the retry also fails).
+        const navigated = await this.page
+            .waitForURL('**/product/list**', { timeout: TIMEOUT.MEDIUM })
+            .then(() => true)
+            .catch(() => false);
+
+        if (!navigated) {
+            console.log('  [WARN] Navigation may not have registered — retrying click');
+            await this.productsLink.click({ force: true });
+            await this.page.waitForURL('**/product/list**', { timeout: TIMEOUT.NAVIGATION });
+        }
+
         await waitForPageStable(this.page);
         await waitForTableLoad(this.page);
         console.log('  [OK] Product list page loaded');
@@ -918,6 +931,48 @@ class ProductWithoutStockPage {
             );
         }
         console.log(`  [OK] Supplier assignment confirmed for SKU ${sku}: "${cellText}"`);
+    }
+
+    // --- Export / Import Cost -------------------------------------------------
+
+    /**
+     * Clicks Export Selected and returns the path of the downloaded file.
+     * Caller must have already selected the target row(s).
+     */
+    async exportSelected() {
+        console.log('\n[EXPORT] Clicking Export Selected');
+        const downloadPromise = this.page.waitForEvent('download', { timeout: TIMEOUT.LONG });
+        await this.page.getByRole('button', { name: 'Export Selected' }).click();
+        const download = await downloadPromise;
+
+        const savePath = require('path').resolve(__dirname, '../../../downloads', download.suggestedFilename());
+        require('fs').mkdirSync(require('path').dirname(savePath), { recursive: true });
+        await download.saveAs(savePath);
+        console.log(`  [OK] Downloaded to: ${savePath}`);
+        return savePath;
+    }
+
+    async importCostFile(filePath) {
+        console.log(`\n[IMPORT] Importing cost file: ${filePath}`);
+        await this.page.getByRole('button', { name: 'Import' }).click();
+
+        const fileInput = this.page.locator('input[type="file"][accept*="spreadsheetml"]');
+        await fileInput.waitFor({ state: 'attached', timeout: TIMEOUT.MEDIUM });
+        await fileInput.setInputFiles(filePath);
+
+        const fileName = require('path').basename(filePath);
+        const acceptedFile = this.page.locator('p').filter({ hasText: fileName });
+        await acceptedFile.waitFor({ state: 'visible', timeout: TIMEOUT.MEDIUM });
+        console.log(`  [OK] File attached in dialog: ${fileName}`);
+
+        // Scoped to the import dialog by its accessible name ("Upload File")
+        const importDialog = this.page.getByRole('dialog', { name: 'Upload File' });
+        const submitBtn = importDialog.getByRole('button', { name: 'Submit', exact: true });
+        await submitBtn.waitFor({ state: 'visible', timeout: TIMEOUT.MEDIUM });
+        await submitBtn.click();
+
+        await waitForToast(this.page, 'success');
+        console.log('  [OK] Import submitted successfully');
     }
 }
 

@@ -21,6 +21,7 @@ blob-report/
 .vscode/
 # Runtime-generated product SKU data
 captured-sku.json
+downloads/
 
 # Failure screenshots
 failure-*.png

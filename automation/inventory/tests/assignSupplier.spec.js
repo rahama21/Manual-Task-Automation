@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { LoginPage, ProductWithoutStockPage } = require('../pages/inventoryWorkflow.pages');
 const { CREDENTIALS, OTP } = require('../../../config/testConfig');
+const { fillCostColumn } = require('../../../utils/excelHelper');
 
 test.describe('CartUp Inventory Portal: Assign Supplier', () => {
 
@@ -43,6 +44,13 @@ test.describe('CartUp Inventory Portal: Assign Supplier', () => {
                 await productListPage.selectRowBySku(sku);
                 await productListPage.clickAssignSupplier();
                 await productListPage.verifySupplierAssigned(sku, 'S10110');
+            });
+
+            await test.step(`Export, fill cost, import for SKU ${sku}`, async () => {
+                await productListPage.selectRowBySku(sku);
+                const filePath = await productListPage.exportSelected();
+                fillCostColumn(filePath);
+                await productListPage.importCostFile(filePath);
             });
         }
     });
