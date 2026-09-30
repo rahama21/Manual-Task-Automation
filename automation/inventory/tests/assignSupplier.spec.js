@@ -1,10 +1,10 @@
 // @ts-check
-const { test } = require('@playwright/test');
+const { test, expect } = require('@playwright/test');
 const path = require('path');
 const fs = require('fs');
 const { LoginPage, ProductWithoutStockPage } = require('../pages/inventoryWorkflow.pages');
 const { CREDENTIALS, OTP } = require('../../../config/testConfig');
-const { fillCostColumn } = require('../../../utils/excelHelper');
+const { fillCostColumn, readCostColumn } = require('../../../utils/excelHelper');
 
 test.describe('CartUp Inventory Portal: Assign Supplier', () => {
 

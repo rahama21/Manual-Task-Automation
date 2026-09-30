@@ -760,10 +760,14 @@ class ProductWithoutStockPage {
 
     async clickSearch() {
         console.log('\n[ACTION] Clicking Search to filter table');
+        const responsePromise = this.page.waitForResponse(
+            resp => resp.url().includes('/inventory/api/v1/Product/') && resp.status() === 200,
+            { timeout: TIMEOUT.LONG }
+        );
         await this.searchBtn.waitFor({ state: 'visible', timeout: TIMEOUT.MEDIUM });
         await this.searchBtn.click();
+        await responsePromise;
         await waitForPageStable(this.page);
-        await waitForTableLoad(this.page);
         console.log('  [OK] Table filtered');
     }
 
@@ -792,7 +796,11 @@ class ProductWithoutStockPage {
         await row.waitFor({ state: 'visible', timeout: TIMEOUT.LONG });
         const checkbox = row.locator('[data-pc-section="checkbox"], .p-checkbox-box, [role="checkbox"]').first();
         await checkbox.waitFor({ state: 'visible', timeout: TIMEOUT.MEDIUM });
-        await checkbox.click();
+        const isChecked = (await checkbox.getAttribute('aria-checked') === 'true') ||
+            (await checkbox.evaluate(el => el.classList.contains('p-highlight') || el.classList.contains('p-checkbox-checked')).catch(() => false));
+        if (!isChecked) {
+            await checkbox.click();
+        }
         console.log(`  [OK] Row selected for SKU: ${sku}`);
     }
 
@@ -911,11 +919,12 @@ class ProductWithoutStockPage {
      * @param {string} sku
      * @param {string} supplierCode - e.g. 'S10110'
      */
-    async verifySupplierAssigned(sku, supplierCode) {
+    async verifySupplierAssigned(sku, supplierCode, brand = 'Apple') {
         console.log(`\n[VERIFY] Confirming supplier assignment for SKU: ${sku}`);
         await this.switchToWithoutStockTab();
-        // switchToWithoutStockTab() is now a hard reload — it wipes the SKU field.
-        // Don't assume any prior filter state survived; refill it explicitly.
+        if (brand) {
+            await this.selectBrand(brand);
+        }
         await this.searchBySku(sku);
 
         const row = this.page.locator('tbody tr').filter({ hasText: sku }).first();
@@ -945,10 +954,14 @@ class ProductWithoutStockPage {
         await this.page.getByRole('button', { name: 'Export Selected' }).click();
         const download = await downloadPromise;
 
-        const savePath = require('path').resolve(__dirname, '../../../downloads', download.suggestedFilename());
+        const suggestedName = download.suggestedFilename();
+        const ext = require('path').extname(suggestedName);
+        const baseName = require('path').basename(suggestedName, ext);
+        const uniqueFileName = `${baseName}_${Date.now()}${ext}`;
+        const savePath = require('path').resolve(__dirname, '../../../downloads', uniqueFileName);
         require('fs').mkdirSync(require('path').dirname(savePath), { recursive: true });
         await download.saveAs(savePath);
-        console.log(`  [OK] Downloaded to: ${savePath}`);
+        console.log(`  [OK] Downloaded to: ${savePath} (original: ${suggestedName})`);
         return savePath;
     }
 
@@ -973,6 +986,52 @@ class ProductWithoutStockPage {
 
         await waitForToast(this.page, 'success');
         console.log('  [OK] Import submitted successfully');
+    }
+
+    /**
+     * After a cost import, re-search the SKU and confirm the table's Price
+     * column reflects the imported value. Price is confirmed to be the
+     * system-view name for what the Excel export calls Cost(*).
+     * @param {string} sku
+     * @param {number} expectedCost
+     */
+    async verifyCostImported(sku, expectedCost) {
+        console.log(`\n[VERIFY] Confirming cost import for SKU: ${sku}`);
+        await this.switchToWithoutStockTab();
+        await this.searchBySku(sku);
+
+        const row = this.page.locator('tbody tr').filter({ hasText: sku }).first();
+        await row.waitFor({ state: 'visible', timeout: TIMEOUT.MEDIUM });
+
+        // Locate "Price" column by header text, not a hardcoded index —
+        // resilient to column reordering, same principle as excelHelper's
+        // header-text lookup for Cost(*).
+        const headers = this.page.locator('thead th');
+        const headerCount = await headers.count();
+        let priceColIndex = -1;
+        for (let i = 0; i < headerCount; i++) {
+            const text = (await headers.nth(i).textContent())?.trim();
+            if (text === 'Price') {
+                priceColIndex = i;
+                break;
+            }
+        }
+        if (priceColIndex === -1) {
+            throw new Error('Could not locate "Price" column header in table');
+        }
+
+        const priceCell = row.locator('td').nth(priceColIndex);
+        const cellText = (await priceCell.textContent())?.trim() ?? '';
+        const actualPrice = parseFloat(cellText);
+
+        console.log(`  [INFO] Price cell for ${sku}: "${cellText}"`);
+
+        if (actualPrice !== expectedCost) {
+            throw new Error(
+                `Cost import not reflected for SKU ${sku}. Expected Price ${expectedCost}, got: "${cellText}"`
+            );
+        }
+        console.log(`  [OK] Cost import verified for SKU ${sku}: ${actualPrice}`);
     }
 }
 

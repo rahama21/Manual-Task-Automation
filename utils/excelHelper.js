@@ -52,4 +52,36 @@ function fillCostColumn(filePath, range = {}) {
     return writtenValues;
 }
 
-module.exports = { fillCostColumn };
+function readCostColumn(filePath) {
+    const workbook = XLSX.readFile(filePath);
+    const sheetName = 'Products';
+    const sheet = workbook.Sheets[sheetName];
+    if (!sheet || !sheet['!ref']) {
+        throw new Error(`Sheet "${sheetName}" not found or empty in ${filePath}`);
+    }
+    const range = XLSX.utils.decode_range(sheet['!ref']);
+
+    let skuColIndex = -1;
+    let costColIndex = -1;
+    for (let col = range.s.c; col <= range.e.c; col++) {
+        const header = sheet[XLSX.utils.encode_cell({ r: range.s.r, c: col })];
+        if (!header) continue;
+        const text = String(header.v).trim();
+        if (text === 'ShopSKU') skuColIndex = col;
+        if (text === 'Cost(*)') costColIndex = col;
+    }
+    if (skuColIndex === -1 || costColIndex === -1) {
+        throw new Error(`Could not locate ShopSKU/Cost(*) columns in ${filePath}`);
+    }
+
+    const result = {};
+    for (let row = range.s.r + 1; row <= range.e.r; row++) {
+        const skuCell = sheet[XLSX.utils.encode_cell({ r: row, c: skuColIndex })];
+        if (!skuCell || skuCell.v === undefined || skuCell.v === null || String(skuCell.v).trim() === '') continue;
+        const costCell = sheet[XLSX.utils.encode_cell({ r: row, c: costColIndex })];
+        result[String(skuCell.v).trim()] = costCell && costCell.v !== undefined && costCell.v !== null && costCell.v !== '' ? Number(costCell.v) : null;
+    }
+    return result;
+}
+
+module.exports = { fillCostColumn, readCostColumn };
