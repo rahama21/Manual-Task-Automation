@@ -699,8 +699,8 @@ class ProductWithoutStockPage {
         this.searchBtn = page.getByRole('button', { name: /^Search$/i });
         this.selectAllCheckbox = page.locator('thead [data-pc-section="headercheckbox"], thead .p-checkbox-box').first();
 
-        // Confirmed: button[type="submit"] disabled until Brand+Supplier both selected & rows checked
-        this.assignSupplierBtn = page.locator('button[type="submit"]').filter({ hasText: /^Assign Supplier$/ });
+        // The button is now type="button" (class product-filter__btn--success), so match it by role and label
+        this.assignSupplierBtn = page.getByRole('button', { name: 'Assign Supplier', exact: true });
     }
 
     // --- Navigation ---------------------------------------------------------
